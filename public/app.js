@@ -420,6 +420,16 @@ document.querySelectorAll('.sort-btn').forEach(btn => {
 document.getElementById('add-btn').addEventListener('click', () => {
   document.getElementById('new-todo-panel').classList.toggle('hidden');
   if (!document.getElementById('new-todo-panel').classList.contains('hidden')) {
+    // Inherit filter selections as defaults
+    if (state.filter.project !== 'all') {
+      document.getElementById('new-project').value = state.filter.project;
+    }
+    if (state.filter.priorities.size === 1) {
+      const [priority] = state.filter.priorities;
+      if (priority !== 'done') {
+        document.getElementById('new-priority').value = priority;
+      }
+    }
     document.getElementById('new-text').focus();
   }
 });
