@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mission Control</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Mission Control</h1>
+    <div id="counts"></div>
+  </header>
+
+  <div id="toolbar">
+    <div class="filters">
+      <input type="text" id="search" placeholder="Search…" autocomplete="off">
+
+      <select id="filter-project">
+        <option value="all">All projects</option>
+      </select>
+
+      <div class="priority-toggles">
+        <label class="toggle-btn active" data-priority="now">Now</label>
+        <label class="toggle-btn active" data-priority="next">Next</label>
+        <label class="toggle-btn" data-priority="someday">Someday</label>
+        <label class="toggle-btn" data-priority="done">Done</label>
+      </div>
+    </div>
+
+    <div class="sort-controls">
+      <span>Sort:</span>
+      <button class="sort-btn active" data-field="priority">Priority</button>
+      <button class="sort-btn" data-field="dueDate">Due date</button>
+      <button class="sort-btn" data-field="project">Project</button>
+    </div>
+  </div>
+
+  <div id="new-todo-panel" class="hidden">
+    <form id="new-todo-form">
+      <input type="text" id="new-text" placeholder="Todo text… (URLs auto-linked on save)" autocomplete="off" required>
+      <select id="new-project"></select>
+      <select id="new-priority">
+        <option value="now">Now</option>
+        <option value="next" selected>Next</option>
+        <option value="someday">Someday</option>
+      </select>
+      <button type="submit">Add</button>
+      <button type="button" id="cancel-new">Cancel</button>
+    </form>
+  </div>
+
+  <main>
+    <table id="todo-table">
+      <thead>
+        <tr>
+          <th class="col-project">Project</th>
+          <th class="col-priority">Priority</th>
+          <th class="col-due">Due</th>
+          <th class="col-todo">Todo</th>
+          <th class="col-actions"></th>
+        </tr>
+      </thead>
+      <tbody id="todo-body"></tbody>
+    </table>
+    <div id="empty-state" class="hidden">No items match the current filters.</div>
+  </main>
+
+  <button id="add-btn" title="New todo">+</button>
+
+  <div id="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
