@@ -91,6 +91,7 @@ function renderText(raw) {
 const PRIORITY_ORDER = { now: 0, next: 1, someday: 2, done: 3 };
 const PRIORITY_LABEL = { now: 'Now', next: 'Next', someday: 'Someday', done: 'Done' };
 const PRIORITY_CLASS = { now: 'p-now', next: 'p-next', someday: 'p-someday', done: 'p-done' };
+const DEFAULT_VISIBLE_PRIORITIES = ['now', 'next', 'someday'];
 
 // Keep list ownership explicit. New projects are treated as work until added here.
 const PERSONAL_PROJECTS = new Set([
@@ -113,6 +114,12 @@ function projectList(project) {
 
 function projectsForActiveList() {
   return state.projects.filter(project => projectList(project) === state.list);
+}
+
+function syncPriorityToggleButtons() {
+  document.querySelectorAll('.priority-toggles .toggle-btn').forEach(btn => {
+    btn.classList.toggle('active', state.filter.priorities.has(btn.dataset.priority));
+  });
 }
 
 function matchesCurrentFilters(item, list = state.list) {
@@ -469,12 +476,16 @@ document.querySelectorAll('.priority-toggles .toggle-btn').forEach(btn => {
     const p = btn.dataset.priority;
     if (state.filter.priorities.has(p)) {
       state.filter.priorities.delete(p);
-      btn.classList.remove('active');
     } else {
       state.filter.priorities.add(p);
-      btn.classList.add('active');
       if (p === 'done') await loadDone();
     }
+
+    if (state.filter.priorities.size === 0) {
+      state.filter.priorities = new Set(DEFAULT_VISIBLE_PRIORITIES);
+    }
+
+    syncPriorityToggleButtons();
     render();
   });
 });
