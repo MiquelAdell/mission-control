@@ -55,6 +55,54 @@ header h1 {
   color: var(--muted);
 }
 
+/* ─── List tabs ───────────────────────────────────────────────────────────── */
+
+#list-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 12px 24px 0;
+  background: var(--surface);
+}
+
+.list-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--surface2);
+  color: var(--muted);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.list-tab:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.list-tab.active {
+  background: var(--bg);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.tab-count {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent-dim);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+}
+
 /* ─── Toolbar ─────────────────────────────────────────────────────────────── */
 
 #toolbar {

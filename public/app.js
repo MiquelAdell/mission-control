@@ -4,6 +4,7 @@ const state = {
   todos: [],
   done: [],
   projects: [],
+  list: 'work',
   filter: {
     priorities: new Set(['now', 'next']),
     project: 'all',
@@ -91,24 +92,50 @@ const PRIORITY_ORDER = { now: 0, next: 1, someday: 2, done: 3 };
 const PRIORITY_LABEL = { now: 'Now', next: 'Next', someday: 'Someday', done: 'Done' };
 const PRIORITY_CLASS = { now: 'p-now', next: 'p-next', someday: 'p-someday', done: 'p-done' };
 
-// ─── Filtering & sorting ──────────────────────────────────────────────────────
+// Keep list ownership explicit. New projects are treated as work until added here.
+const PERSONAL_PROJECTS = new Set([
+  'bambu-a1-bed-issue',
+  'dashboard',
+  'gridfinity',
+  'home-assistant',
+  'refugio-del-satiro',
+]);
 
-function visibleItems() {
+const LIST_LABEL = { work: 'Work', personal: 'Personal' };
+
+function itemList(item) {
+  return PERSONAL_PROJECTS.has(item.project) ? 'personal' : 'work';
+}
+
+function projectList(project) {
+  return PERSONAL_PROJECTS.has(project) ? 'personal' : 'work';
+}
+
+function projectsForActiveList() {
+  return state.projects.filter(project => projectList(project) === state.list);
+}
+
+function matchesCurrentFilters(item, list = state.list) {
   const { priorities, project, search } = state.filter;
   const searchLow = search.toLowerCase();
 
+  if (itemList(item) !== list) return false;
+  if (!priorities.has(item.priority)) return false;
+  if (project !== 'all' && item.project !== project) return false;
+  if (searchLow && !item.text.toLowerCase().includes(searchLow) &&
+      !item.project.toLowerCase().includes(searchLow)) return false;
+  return true;
+}
+
+// ─── Filtering & sorting ──────────────────────────────────────────────────────
+
+function visibleItems() {
   const pool = [
     ...state.todos,
-    ...(priorities.has('done') ? state.done : []),
+    ...(state.filter.priorities.has('done') ? state.done : []),
   ];
 
-  return pool.filter(item => {
-    if (!priorities.has(item.priority)) return false;
-    if (project !== 'all' && item.project !== project) return false;
-    if (searchLow && !item.text.toLowerCase().includes(searchLow) &&
-        !item.project.toLowerCase().includes(searchLow)) return false;
-    return true;
-  }).sort((a, b) => {
+  return pool.filter(item => matchesCurrentFilters(item)).sort((a, b) => {
     const { field, dir } = state.sort;
     let cmp = 0;
     if (field === 'priority') {
@@ -177,9 +204,26 @@ function isDue(dateStr) {
 }
 
 function updateCounts() {
-  const nowCount = state.todos.filter(t => t.priority === 'now').length;
-  const nextCount = state.todos.filter(t => t.priority === 'next').length;
-  document.getElementById('counts').textContent = `${nowCount} now · ${nextCount} next`;
+  const activeTodos = state.todos.filter(t => itemList(t) === state.list);
+  const nowCount = activeTodos.filter(t => t.priority === 'now').length;
+  const nextCount = activeTodos.filter(t => t.priority === 'next').length;
+  document.getElementById('counts').textContent = `${LIST_LABEL[state.list]} · ${nowCount} now · ${nextCount} next`;
+  updateTabCounts();
+}
+
+function updateTabCounts() {
+  const pool = [
+    ...state.todos,
+    ...(state.filter.priorities.has('done') ? state.done : []),
+  ];
+  const counts = pool.reduce((acc, item) => {
+    const list = itemList(item);
+    if (matchesCurrentFilters(item, list)) acc[list] += 1;
+    return acc;
+  }, { work: 0, personal: 0 });
+
+  document.getElementById('work-tab-count').textContent = counts.work;
+  document.getElementById('personal-tab-count').textContent = counts.personal;
 }
 
 // ─── Priority click ───────────────────────────────────────────────────────────
@@ -343,24 +387,44 @@ function reload() {
 function updateProjectDropdown() {
   const sel = document.getElementById('filter-project');
   const current = sel.value;
-  sel.innerHTML = '<option value="all">All projects</option>';
-  state.projects.forEach(p => {
+  const activeProjects = projectsForActiveList();
+
+  if (current !== 'all' && !activeProjects.includes(current)) {
+    state.filter.project = 'all';
+  }
+
+  sel.innerHTML = `<option value="all">All ${state.list} projects</option>`;
+  activeProjects.forEach(p => {
     const opt = document.createElement('option');
     opt.value = p;
     opt.textContent = p;
-    if (p === current) opt.selected = true;
+    if (p === state.filter.project) opt.selected = true;
     sel.appendChild(opt);
   });
 
   // Also populate new-todo project dropdown
   const newSel = document.getElementById('new-project');
-  newSel.innerHTML = '<option value="">(generic)</option>';
-  state.projects.filter(p => p !== '(generic)').forEach(p => {
+  newSel.innerHTML = '';
+
+  if (state.list === 'personal') {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = '(generic)';
+    newSel.appendChild(opt);
+  }
+
+  activeProjects.filter(p => p !== '(generic)').forEach(p => {
     const opt = document.createElement('option');
     opt.value = p;
     opt.textContent = p;
     newSel.appendChild(opt);
   });
+
+  if (state.filter.project !== 'all') {
+    newSel.value = state.filter.project;
+  } else if (newSel.options.length > 0) {
+    newSel.selectedIndex = 0;
+  }
 }
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -385,6 +449,19 @@ document.getElementById('search').addEventListener('input', e => {
 document.getElementById('filter-project').addEventListener('change', e => {
   state.filter.project = e.target.value;
   render();
+});
+
+document.querySelectorAll('.list-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    const list = tab.dataset.list;
+    if (state.list === list) return;
+
+    state.list = list;
+    state.filter.project = 'all';
+    document.querySelectorAll('.list-tab').forEach(t => t.classList.toggle('active', t === tab));
+    updateProjectDropdown();
+    render();
+  });
 });
 
 document.querySelectorAll('.priority-toggles .toggle-btn').forEach(btn => {

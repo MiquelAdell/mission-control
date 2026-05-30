@@ -12,6 +12,15 @@
     <div id="counts"></div>
   </header>
 
+  <nav id="list-tabs" aria-label="Todo lists">
+    <button class="list-tab active" data-list="work" type="button">
+      Work <span class="tab-count" id="work-tab-count">0</span>
+    </button>
+    <button class="list-tab" data-list="personal" type="button">
+      Personal <span class="tab-count" id="personal-tab-count">0</span>
+    </button>
+  </nav>
+
   <div id="toolbar">
     <div class="filters">
       <input type="text" id="search" placeholder="Search…" autocomplete="off">

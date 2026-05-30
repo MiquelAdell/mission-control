@@ -28,6 +28,7 @@ No reboot needed. The redirect (port 80 → 3333) and hosts entry survive reboot
 ## Features
 
 - **View** all open to-dos across all workspace projects in one table
+- **Work / Personal tabs** — defaults to work; personal projects are configured in `public/app.js`
 - **Filter** by project, priority (Now / Next / Someday), or text search
 - **Sort** by priority, due date, or project
 - **Mark done** — click ✓ to move an item to the project's `done.md` with today's date
