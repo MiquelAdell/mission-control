@@ -8,3 +8,4 @@ build/
 *.tmp
 .idea/
 .vscode/
+.playwright-mcp/
