@@ -28,13 +28,25 @@ if grep -q "mission-control" /etc/pf.conf; then
   echo "✓ /etc/pf.conf already has mission-control anchor"
 else
   cp /etc/pf.conf "/etc/pf.conf.bak.$(date +%Y%m%d)"
-  cat >> /etc/pf.conf << 'PFCONF'
+  # pf grammar requires a strict order: options, normalization, queueing,
+  # translation (nat/rdr), then filtering. So the rdr-anchor MUST be placed
+  # with the other translation anchors (before any filter `anchor`), not just
+  # appended at the end — otherwise `pfctl -f` errors and nothing loads.
+  # Insert rdr-anchor right after Apple's rdr-anchor; keep the filter anchor
+  # and load statements at the end.
+  awk '
+    { print }
+    /^rdr-anchor "com\.apple\/\*"/ {
+      print "rdr-anchor \"mission-control\"   # Mission Control — mc.local → localhost:3333"
+    }
+  ' /etc/pf.conf > /etc/pf.conf.mc.tmp
+  cat >> /etc/pf.conf.mc.tmp << 'PFCONF'
 
 # Mission Control — mc.local → localhost:3333
-rdr-anchor "mission-control"
 anchor "mission-control"
 load anchor "mission-control" from "/etc/pf.anchors/mission-control"
 PFCONF
+  mv /etc/pf.conf.mc.tmp /etc/pf.conf
   echo "✓ Patched /etc/pf.conf (backup saved)"
 fi
 
