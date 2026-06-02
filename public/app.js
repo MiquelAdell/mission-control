@@ -189,7 +189,7 @@ function render() {
         <span class="todo-text" title="${escHtml(item.subLines && item.subLines.length ? item.subLines.join('\n') : '')}">${renderText(item.text)}</span>
       </td>
       <td class="col-actions">
-        ${!item.done ? `<button class="btn-done" title="Mark done" data-id="${item.id}">✓</button>` : ''}
+        ${!item.done ? `<button class="btn-done" title="Mark done" data-id="${item.id}">✓</button><button class="btn-delete" title="Delete" data-id="${item.id}">✕</button>` : ''}
       </td>
     `;
 
@@ -197,6 +197,7 @@ function render() {
       tr.querySelector('.badge').addEventListener('click', () => startPriorityEdit(tr, item));
       tr.querySelector('.todo-text').addEventListener('dblclick', () => startEdit(tr, item));
       tr.querySelector('.btn-done').addEventListener('click', () => markDone(item, tr));
+      tr.querySelector('.btn-delete').addEventListener('click', () => deleteTodo(item, tr));
     }
 
     tbody.appendChild(tr);
@@ -360,6 +361,60 @@ function markDone(item, tr) {
     reload();
   })
   .catch(e => { tr.classList.remove('fading'); showToast(e.message, 'error'); });
+}
+
+// ─── Delete todo ──────────────────────────────────────────────────────────────
+
+function deleteTodo(item, tr) {
+  const dialog = document.getElementById('confirm-delete-dialog');
+  const okBtn = document.getElementById('confirm-delete-ok');
+  const cancelBtn = document.getElementById('confirm-delete-cancel');
+
+  function cleanup() {
+    okBtn.removeEventListener('click', onOk);
+    cancelBtn.removeEventListener('click', onCancel);
+    dialog.removeEventListener('cancel', onCancel);
+  }
+
+  function onOk() {
+    cleanup();
+    dialog.close();
+
+    const parent = tr.parentNode;
+    const next = tr.nextSibling;
+    parent.removeChild(tr);
+    updateCounts();
+
+    fetch(`/api/todos/${item.id}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file: item.file, headlineRaw: item.headlineRaw }),
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        parent.insertBefore(tr, next);
+        updateCounts();
+        showToast(data.error, 'error');
+      }
+    })
+    .catch(e => {
+      parent.insertBefore(tr, next);
+      updateCounts();
+      showToast(e.message, 'error');
+    });
+  }
+
+  function onCancel() {
+    cleanup();
+    dialog.close();
+  }
+
+  okBtn.addEventListener('click', onOk);
+  cancelBtn.addEventListener('click', onCancel);
+  dialog.addEventListener('cancel', onCancel);
+
+  dialog.showModal();
 }
 
 // ─── Data loading ─────────────────────────────────────────────────────────────

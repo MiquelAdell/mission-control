@@ -284,8 +284,10 @@ main {
 }
 
 .col-actions {
-  width: 36px;
+  width: 68px;
+  white-space: nowrap;
   text-align: right;
+  vertical-align: middle;
 }
 
 .col-todo { max-width: 0; }
@@ -353,7 +355,7 @@ main {
   height: 28px;
   cursor: pointer;
   font-size: 13px;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   transition: all 0.15s;
@@ -362,6 +364,80 @@ main {
 
 tr:hover .btn-done { opacity: 1; }
 .btn-done:hover { border-color: var(--someday); color: var(--someday); }
+
+.btn-delete {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: var(--radius);
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  opacity: 0;
+  margin-left: 4px;
+}
+
+tr:hover .btn-delete { opacity: 1; }
+.btn-delete:hover { border-color: var(--now); color: var(--now); }
+
+/* ─── Confirm delete dialog ───────────────────────────────────────────────── */
+
+#confirm-delete-dialog {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 24px 28px;
+  min-width: 260px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  margin: auto;
+}
+
+#confirm-delete-dialog::backdrop {
+  background: rgba(0,0,0,0.5);
+}
+
+#confirm-delete-dialog p {
+  margin: 0 0 20px;
+  font-size: 14px;
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.btn-dialog-danger {
+  background: var(--now);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  padding: 6px 16px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.btn-dialog-danger:hover { opacity: 0.85; }
+
+.btn-dialog-cancel {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: var(--radius);
+  padding: 6px 16px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.btn-dialog-cancel:hover { border-color: var(--text); color: var(--text); }
 
 /* ─── Edit inline ─────────────────────────────────────────────────────────── */
 

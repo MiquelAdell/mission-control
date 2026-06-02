@@ -1,0 +1,1 @@
+- [2026-06-02] Make http://mc.local/ work (fixed pf rdr-anchor ordering in pf.conf)
