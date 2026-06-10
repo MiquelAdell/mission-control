@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { glob } = require('glob');
+const { exec, execSync } = require('child_process');
 
 const app = express();
 const PORT = process.env.PORT || 3333;
@@ -51,10 +52,10 @@ function parseTodoFile(filePath) {
   while (i < lines.length) {
     const line = lines[i];
 
-    const sectionMatch = /^##\s+(Now|Next|Someday)\s*$/i.exec(line);
+    const sectionMatch = /^##\s+(Now|Next)\s*$/i.exec(line);
     if (sectionMatch) {
       const s = sectionMatch[1].toLowerCase();
-      currentPriority = s === 'now' ? 'now' : s === 'next' ? 'next' : 'someday';
+      currentPriority = s === 'now' ? 'now' : 'next';
       i++;
       continue;
     }
@@ -362,6 +363,120 @@ app.delete('/api/todos/:id', (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+
+// ─── GitHub PR reviews ────────────────────────────────────────────────────────
+
+const GH_ENV = { ...process.env, PATH: `/opt/homebrew/bin:/usr/local/bin:${process.env.PATH || ''}` };
+let prReviewCache = { data: null, ts: 0 };
+const PR_CACHE_TTL = 5 * 60 * 1000;
+
+app.get('/api/prs-to-review', (req, res) => {
+  const now = Date.now();
+  if (prReviewCache.data !== null && now - prReviewCache.ts < PR_CACHE_TTL) {
+    return res.json(prReviewCache.data);
+  }
+  const query = 'is:pr review-requested:MiquelAdell -reviewed-by:MiquelAdell is:open';
+  exec(`gh api "search/issues?q=${encodeURIComponent(query)}&per_page=30"`, { env: GH_ENV }, (err, stdout) => {
+    if (err) return res.status(500).json({ error: err.message });
+    try {
+      const parsed = JSON.parse(stdout);
+      const items = (parsed.items || []).map(item => ({
+        title: item.title,
+        url: item.html_url,
+        repo: item.repository_url.replace('https://api.github.com/repos/', ''),
+        author: item.user.login,
+        createdAt: item.created_at,
+      }));
+      prReviewCache = { data: items, ts: Date.now() };
+      res.json(items);
+    } catch (e) {
+      res.status(500).json({ error: `Parse error: ${e.message}` });
+    }
+  });
+});
+
+app.delete('/api/prs-to-review/cache', (req, res) => {
+  prReviewCache = { data: null, ts: 0 };
+  res.json({ ok: true });
+});
+
+// ─── Project context ──────────────────────────────────────────────────────────
+
+app.get('/api/projects/:name/context', (req, res) => {
+  const name = req.params.name;
+  let claudeMdPath = null;
+
+  try {
+    const entries = fs.readdirSync(WORKSPACE);
+    const match = entries.find(e => e.toLowerCase() === name.toLowerCase());
+    if (match) {
+      const candidate = path.join(WORKSPACE, match, 'CLAUDE.md');
+      if (fs.existsSync(candidate)) claudeMdPath = candidate;
+    }
+  } catch {}
+
+  if (!claudeMdPath) return res.status(404).json({ error: 'No CLAUDE.md for this project' });
+
+  try {
+    const markdown = fs.readFileSync(claudeMdPath, 'utf8');
+    res.json({ markdown });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── Code TODOs ───────────────────────────────────────────────────────────────
+
+app.get('/api/code-todos', (req, res) => {
+  let repos = [];
+  try {
+    const configPath = path.join(__dirname, 'repos.json');
+    repos = JSON.parse(fs.readFileSync(configPath, 'utf8')).repos || [];
+  } catch {
+    return res.json([]);
+  }
+
+  const results = [];
+
+  for (const repo of repos) {
+    const repoPath = repo.path.replace(/^~/, process.env.HOME || '');
+    if (!fs.existsSync(repoPath)) continue;
+
+    try {
+      const output = execSync(
+        `grep -rn -E "(//|#)\\s*(TODO|FIXME):" "${repoPath}" ` +
+        `--include="*.js" --include="*.ts" --include="*.tsx" --include="*.jsx" --include="*.py" ` +
+        `--exclude-dir=node_modules --exclude-dir=dist --exclude-dir=build --exclude-dir=.git ` +
+        `2>/dev/null || true`,
+        { maxBuffer: 4 * 1024 * 1024 }
+      ).toString();
+
+      output.split('\n').filter(Boolean).forEach(line => {
+        const colonIdx = line.indexOf(':');
+        if (colonIdx === -1) return;
+        const afterFile = line.slice(colonIdx + 1);
+        const lineNumColon = afterFile.indexOf(':');
+        if (lineNumColon === -1) return;
+
+        const filePath = line.slice(0, colonIdx);
+        const lineNum = parseInt(afterFile.slice(0, lineNumColon), 10);
+        const content = afterFile.slice(lineNumColon + 1);
+
+        const typeMatch = /(TODO|FIXME)/i.exec(content);
+        if (!typeMatch) return;
+        const type = typeMatch[1].toUpperCase();
+        const text = content.replace(/.*?(TODO|FIXME)\s*:?\s*/i, '').trim() || '(no description)';
+        const relFile = path.relative(repoPath, filePath);
+
+        results.push({ repo: repo.name, list: repo.list || 'work', file: relFile, line: lineNum, type, text });
+      });
+    } catch {}
+  }
+
+  res.json(results);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 app.listen(PORT, () => {
   console.log(`Mission Control running at http://localhost:${PORT}`);
