@@ -4,7 +4,11 @@ const state = {
   todos: [],
   done: [],
   projects: [],
+  prs: [],
+  codeTodos: [],
+  codeFilter: { repo: 'all' },
   list: 'work',
+  subTab: 'todo',
   filter: {
     priorities: new Set(['now', 'next']),
     project: 'all',
@@ -99,17 +103,22 @@ const PERSONAL_PROJECTS = new Set([
   'dashboard',
   'gridfinity',
   'home-assistant',
+  'personal',
   'refugio-del-satiro',
 ]);
 
 const LIST_LABEL = { work: 'Work', personal: 'Personal' };
 
+function isPersonal(project) {
+  return PERSONAL_PROJECTS.has(project) || project.startsWith('personal/');
+}
+
 function itemList(item) {
-  return PERSONAL_PROJECTS.has(item.project) ? 'personal' : 'work';
+  return isPersonal(item.project) ? 'personal' : 'work';
 }
 
 function projectList(project) {
-  return PERSONAL_PROJECTS.has(project) ? 'personal' : 'work';
+  return isPersonal(project) ? 'personal' : 'work';
 }
 
 function projectsForActiveList() {
@@ -182,7 +191,7 @@ function render() {
     if (item.done) tr.classList.add('is-done');
 
     tr.innerHTML = `
-      <td class="col-project">${escHtml(item.project)}</td>
+      <td class="col-project"><button class="project-link" data-project="${escHtml(item.project)}">${escHtml(item.project)}</button></td>
       <td class="col-priority"><span class="badge ${PRIORITY_CLASS[item.priority]}" title="Click to change priority">${PRIORITY_LABEL[item.priority]}</span></td>
       <td class="col-due">${item.dueDate ? `<span class="due-date${isDue(item.dueDate) ? ' overdue' : ''}">${item.dueDate}</span>` : ''}</td>
       <td class="col-todo">
@@ -192,6 +201,8 @@ function render() {
         ${!item.done ? `<button class="btn-done" title="Mark done" data-id="${item.id}">✓</button><button class="btn-delete" title="Delete" data-id="${item.id}">✕</button>` : ''}
       </td>
     `;
+
+    tr.querySelector('.project-link').addEventListener('click', () => openContextPanel(item.project));
 
     if (!item.done) {
       tr.querySelector('.badge').addEventListener('click', () => startPriorityEdit(tr, item));
@@ -521,8 +532,18 @@ document.querySelectorAll('.list-tab').forEach(tab => {
     state.list = list;
     state.filter.project = 'all';
     document.querySelectorAll('.list-tab').forEach(t => t.classList.toggle('active', t === tab));
-    updateProjectDropdown();
-    render();
+
+    if (state.subTab === 'todo') {
+      updateProjectDropdown();
+      render();
+    } else if (state.subTab === 'prs') {
+      renderPRView();
+    } else if (state.subTab === 'code') {
+      updateCodeRepoDropdown();
+      renderCodeTodos();
+    }
+
+    updateSubTabCounts();
   });
 });
 
@@ -605,6 +626,336 @@ document.getElementById('new-todo-form').addEventListener('submit', e => {
   .catch(e => showToast(e.message, 'error'));
 });
 
+// ─── Sub-tab switching ────────────────────────────────────────────────────────
+
+function switchSubTab(subTab) {
+  state.subTab = subTab;
+  document.querySelectorAll('.sub-tab').forEach(t => t.classList.toggle('active', t.dataset.subtab === subTab));
+
+  const isTodo    = subTab === 'todo';
+  const isPrs     = subTab === 'prs';
+  const isCode    = subTab === 'code';
+  const isMap     = subTab === 'map';
+  const isScripts = subTab === 'scripts';
+
+  document.getElementById('toolbar').classList.toggle('hidden', !isTodo);
+  document.getElementById('new-todo-panel').classList.add('hidden');
+  document.getElementById('pr-view').classList.toggle('hidden', !isPrs);
+  document.getElementById('code-view').classList.toggle('hidden', !isCode);
+  document.getElementById('map-view').classList.toggle('hidden', !isMap);
+  document.getElementById('scripts-view').classList.toggle('hidden', !isScripts);
+  document.getElementById('todo-table').classList.toggle('hidden', !isTodo);
+  document.getElementById('empty-state').classList.add('hidden');
+  document.getElementById('add-btn').classList.toggle('hidden', !isTodo);
+
+  if (isTodo)    { updateProjectDropdown(); render(); }
+  if (isPrs)     renderPRView();
+  if (isCode)    { updateCodeRepoDropdown(); if (state.codeTodos.length === 0) loadCodeTodos(); else renderCodeTodos(); }
+  if (isMap)     loadProjectsMap();
+  if (isScripts) loadScripts();
+}
+
+document.querySelectorAll('.sub-tab').forEach(tab => {
+  tab.addEventListener('click', () => switchSubTab(tab.dataset.subtab));
+});
+
+// ─── Sub-tab counts ───────────────────────────────────────────────────────────
+
+function updateSubTabCounts() {
+  const prsCount = visiblePRs().length;
+  const codeCount = visibleCodeTodos().length;
+
+  const prsEl = document.getElementById('prs-sub-count');
+  if (prsEl && state.prs.length > 0) prsEl.textContent = prsCount;
+
+  const codeEl = document.getElementById('code-sub-count');
+  if (codeEl) codeEl.textContent = codeCount;
+}
+
+// ─── PR Classification ────────────────────────────────────────────────────────
+
+const WORK_PR_ORGS = new Set(['EyeSeeTea']);
+
+function prListOf(pr) {
+  const org = pr.repo.split('/')[0];
+  return WORK_PR_ORGS.has(org) ? 'work' : 'personal';
+}
+
+function visiblePRs() {
+  return state.prs.filter(pr => prListOf(pr) === state.list);
+}
+
+// ─── PR View ──────────────────────────────────────────────────────────────────
+
+function renderPRView() {
+  const listEl = document.getElementById('pr-list');
+  const prs = visiblePRs();
+
+  updateSubTabCounts();
+
+  if (state.prs.length === 0) {
+    listEl.innerHTML = '<div class="pr-empty">Loading…</div>';
+    return;
+  }
+
+  if (prs.length === 0) {
+    listEl.innerHTML = '<div class="pr-empty">No PRs waiting for your review ✓</div>';
+    return;
+  }
+
+  listEl.innerHTML = prs.map(pr => {
+    const age = prAge(pr.createdAt);
+    const repoShort = pr.repo.split('/').pop();
+    return `<a class="pr-row" href="${escHtml(pr.url)}" target="_blank" rel="noopener">
+      <span class="pr-repo">${escHtml(repoShort)}</span>
+      <span class="pr-title">${escHtml(pr.title)}</span>
+      <span class="pr-meta">${escHtml(pr.author)} · ${age}</span>
+    </a>`;
+  }).join('');
+}
+
+function prAge(isoDate) {
+  const days = Math.floor((Date.now() - new Date(isoDate)) / 86400000);
+  if (days === 0) return 'today';
+  if (days === 1) return '1d ago';
+  return `${days}d ago`;
+}
+
+async function loadPRs() {
+  try {
+    const prs = await fetch('/api/prs-to-review').then(r => r.json());
+    if (prs.error) {
+      if (state.subTab === 'prs') document.getElementById('pr-list').innerHTML = `<div class="pr-empty pr-error">${escHtml(prs.error)}</div>`;
+      return;
+    }
+    state.prs = prs;
+    updateSubTabCounts();
+    if (state.subTab === 'prs') renderPRView();
+  } catch (e) {
+    if (state.subTab === 'prs') document.getElementById('pr-list').innerHTML = `<div class="pr-empty pr-error">${escHtml(e.message)}</div>`;
+  }
+}
+
+document.getElementById('pr-refresh-btn').addEventListener('click', async () => {
+  document.getElementById('prs-sub-count').textContent = '…';
+  document.getElementById('pr-list').innerHTML = '<div class="pr-empty">Refreshing…</div>';
+  await fetch('/api/prs-to-review/cache', { method: 'DELETE' });
+  state.prs = [];
+  loadPRs();
+});
+
+setInterval(loadPRs, 5 * 60 * 1000);
+
+// ─── Context Panel ────────────────────────────────────────────────────────────
+
+function renderMarkdownBlocks(md) {
+  const lines = md.split('\n');
+  const out = [];
+  let inList = false;
+  let inCode = false;
+  let codeLines = [];
+
+  let inTable = false;
+  let tableRows = [];
+
+  const closeList = () => { if (inList) { out.push('</ul>'); inList = false; } };
+  const flushCode = () => { out.push(`<pre><code>${escHtml(codeLines.join('\n'))}</code></pre>`); codeLines = []; inCode = false; };
+  const flushTable = () => {
+    if (!inTable) return;
+    const [header, ...rows] = tableRows;
+    const cells = row => row.replace(/^\|/, '').replace(/\|\s*$/, '').split('|').map(c => c.trim());
+    let html = '<div class="md-table-wrap"><table><thead><tr>';
+    html += cells(header).map(c => `<th>${renderText(c)}</th>`).join('');
+    html += '</tr></thead><tbody>';
+    const hasSeparator = rows[0] !== undefined && /^\s*\|[\s:|-]+\|?\s*$/.test(rows[0]);
+    html += (hasSeparator ? rows.slice(1) : rows)
+      .map(r => `<tr>${cells(r).map(c => `<td>${renderText(c)}</td>`).join('')}</tr>`).join('');
+    html += '</tbody></table></div>';
+    out.push(html);
+    tableRows = [];
+    inTable = false;
+  };
+
+  for (const line of lines) {
+    if (inCode) {
+      if (line.startsWith('```')) flushCode(); else codeLines.push(line);
+      continue;
+    }
+    if (line.startsWith('```')) { closeList(); flushTable(); inCode = true; continue; }
+
+    if (/^\s*\|/.test(line)) {
+      closeList();
+      inTable = true;
+      tableRows.push(line);
+      continue;
+    }
+    flushTable();
+
+    const hm = /^(#{1,4})\s+(.+)$/.exec(line);
+    if (hm) { closeList(); out.push(`<h${hm[1].length}>${renderText(hm[2])}</h${hm[1].length}>`); continue; }
+
+    if (/^---+$/.test(line.trim())) { closeList(); out.push('<hr>'); continue; }
+
+    if (/^[-*]\s/.test(line)) {
+      if (!inList) { out.push('<ul>'); inList = true; }
+      out.push(`<li>${renderText(line.replace(/^[-*]\s+/, ''))}</li>`);
+      continue;
+    }
+
+    if (line.trim() === '') { closeList(); continue; }
+    closeList();
+    out.push(`<p>${renderText(line)}</p>`);
+  }
+
+  closeList();
+  flushTable();
+  if (inCode) flushCode();
+  return out.join('\n');
+}
+
+async function openContextPanel(project) {
+  const panel = document.getElementById('context-panel');
+  const overlay = document.getElementById('context-overlay');
+  const title = document.getElementById('context-panel-title');
+  const body = document.getElementById('context-panel-body');
+
+  title.textContent = project;
+  body.innerHTML = '<div class="context-loading">Loading…</div>';
+  panel.classList.remove('hidden');
+  overlay.classList.remove('hidden');
+
+  try {
+    const data = await fetch(`/api/projects/${encodeURIComponent(project)}/context`).then(r => r.json());
+    if (data.error) { body.innerHTML = `<p class="context-error">${escHtml(data.error)}</p>`; return; }
+    body.innerHTML = renderMarkdownBlocks(data.markdown);
+  } catch (e) {
+    body.innerHTML = `<p class="context-error">${escHtml(e.message)}</p>`;
+  }
+}
+
+function closeContextPanel() {
+  document.getElementById('context-panel').classList.add('hidden');
+  document.getElementById('context-overlay').classList.add('hidden');
+}
+
+document.getElementById('context-panel-close').addEventListener('click', closeContextPanel);
+document.getElementById('context-overlay').addEventListener('click', closeContextPanel);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeContextPanel(); });
+
+// ─── Map Tab ──────────────────────────────────────────────────────────────────
+
+async function loadProjectsMap() {
+  const body = document.getElementById('map-body');
+  body.innerHTML = '<div class="pr-empty">Loading…</div>';
+  try {
+    const data = await fetch('/api/projects-map').then(r => r.json());
+    if (data.error) { body.innerHTML = `<div class="pr-empty pr-error">${escHtml(data.error)}</div>`; return; }
+    document.getElementById('map-path').textContent = data.path.replace(/^\/Users\/[^/]+/, '~');
+    body.innerHTML = renderMarkdownBlocks(data.markdown);
+  } catch (e) {
+    body.innerHTML = `<div class="pr-empty pr-error">${escHtml(e.message)}</div>`;
+  }
+}
+
+document.getElementById('map-refresh-btn').addEventListener('click', loadProjectsMap);
+
+// ─── Scripts Tab ──────────────────────────────────────────────────────────────
+
+async function loadScripts() {
+  const listEl = document.getElementById('scripts-list');
+  listEl.innerHTML = '<div class="pr-empty">Loading…</div>';
+  try {
+    const scripts = await fetch('/api/scripts').then(r => r.json());
+    if (scripts.error) { listEl.innerHTML = `<div class="pr-empty pr-error">${escHtml(scripts.error)}</div>`; return; }
+    if (scripts.length === 0) { listEl.innerHTML = '<div class="pr-empty">No scripts found.</div>'; return; }
+
+    listEl.innerHTML = scripts.map(s => `
+      <div class="script-item">
+        <div class="script-head">
+          <span class="script-name">${escHtml(s.name)}</span>
+          ${s.executable ? '' : '<span class="script-noexec" title="Not executable">not executable</span>'}
+          <span class="script-mtime">${escHtml(String(s.mtime).slice(0, 10))}</span>
+        </div>
+        <div class="script-desc">${renderMarkdownBlocks(s.description || '_No header comment._')}</div>
+      </div>
+    `).join('');
+  } catch (e) {
+    listEl.innerHTML = `<div class="pr-empty pr-error">${escHtml(e.message)}</div>`;
+  }
+}
+
+document.getElementById('scripts-refresh-btn').addEventListener('click', loadScripts);
+
+// ─── Code Tab ─────────────────────────────────────────────────────────────────
+
+function visibleCodeTodos() {
+  const byList = state.codeTodos.filter(t => t.list === state.list);
+  return state.codeFilter.repo === 'all' ? byList : byList.filter(t => t.repo === state.codeFilter.repo);
+}
+
+function updateCodeRepoDropdown() {
+  const repos = [...new Set(state.codeTodos.filter(t => t.list === state.list).map(t => t.repo))].sort();
+  const sel = document.getElementById('code-filter-repo');
+  const current = sel.value;
+  sel.innerHTML = '<option value="all">All repos</option>';
+  repos.forEach(r => {
+    const opt = document.createElement('option');
+    opt.value = r; opt.textContent = r;
+    if (r === current) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  if (!repos.includes(state.codeFilter.repo)) state.codeFilter.repo = 'all';
+}
+
+function renderCodeTodos() {
+  const listEl = document.getElementById('code-list');
+  const filtered = visibleCodeTodos();
+
+  updateSubTabCounts();
+
+  if (filtered.length === 0) {
+    listEl.innerHTML = '<div class="code-empty">No TODO/FIXME items found.</div>';
+    return;
+  }
+
+  const grouped = filtered.reduce((acc, t) => { (acc[t.repo] = acc[t.repo] || []).push(t); return acc; }, {});
+
+  listEl.innerHTML = Object.entries(grouped).map(([repoName, items]) => `
+    <div class="code-repo-group">
+      <div class="code-repo-name">${escHtml(repoName)} <span class="code-repo-count">${items.length}</span></div>
+      ${items.map(t => `
+        <div class="code-item">
+          <span class="code-type ${t.type === 'FIXME' ? 'fixme' : 'todo'}">${t.type}</span>
+          <span class="code-file">${escHtml(t.file)}:${t.line}</span>
+          <span class="code-text">${escHtml(t.text)}</span>
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+async function loadCodeTodos() {
+  const listEl = document.getElementById('code-list');
+  listEl.innerHTML = '<div class="code-empty">Scanning repos…</div>';
+
+  try {
+    const todos = await fetch('/api/code-todos').then(r => r.json());
+    state.codeTodos = todos;
+    updateCodeRepoDropdown();
+    renderCodeTodos();
+  } catch (e) {
+    listEl.innerHTML = `<div class="code-empty code-error">${escHtml(e.message)}</div>`;
+  }
+}
+
+document.getElementById('code-filter-repo').addEventListener('change', e => {
+  state.codeFilter.repo = e.target.value;
+  renderCodeTodos();
+});
+
+document.getElementById('code-refresh-btn').addEventListener('click', loadCodeTodos);
+
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 
 loadData();
+loadPRs();

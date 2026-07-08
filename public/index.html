@@ -21,6 +21,18 @@
     </button>
   </nav>
 
+  <nav id="sub-tabs">
+    <button class="sub-tab active" data-subtab="todo" type="button">TODO</button>
+    <button class="sub-tab" data-subtab="prs" type="button">
+      PRs <span class="tab-count" id="prs-sub-count">…</span>
+    </button>
+    <button class="sub-tab" data-subtab="code" type="button">
+      Code <span class="tab-count" id="code-sub-count">0</span>
+    </button>
+    <button class="sub-tab" data-subtab="map" type="button">Map</button>
+    <button class="sub-tab" data-subtab="scripts" type="button">Scripts</button>
+  </nav>
+
   <div id="toolbar">
     <div class="filters">
       <input type="text" id="search" placeholder="Search…" autocomplete="off">
@@ -59,6 +71,39 @@
     </form>
   </div>
 
+  <div id="pr-view" class="hidden">
+    <div id="pr-view-header">
+      <button id="pr-refresh-btn" title="Refresh">↻ Refresh</button>
+    </div>
+    <div id="pr-list"></div>
+  </div>
+
+  <div id="code-view" class="hidden">
+    <div id="code-toolbar">
+      <select id="code-filter-repo">
+        <option value="all">All repos</option>
+      </select>
+      <button id="code-refresh-btn">↻ Refresh</button>
+    </div>
+    <div id="code-list"></div>
+  </div>
+
+  <div id="map-view" class="hidden">
+    <div id="map-view-header">
+      <span id="map-path" class="view-source-path"></span>
+      <button id="map-refresh-btn" title="Refresh">↻ Refresh</button>
+    </div>
+    <div id="map-body" class="md-doc"></div>
+  </div>
+
+  <div id="scripts-view" class="hidden">
+    <div id="scripts-view-header">
+      <span class="view-source-path">~/.claude/scripts/</span>
+      <button id="scripts-refresh-btn" title="Refresh">↻ Refresh</button>
+    </div>
+    <div id="scripts-list"></div>
+  </div>
+
   <main>
     <table id="todo-table">
       <thead>
@@ -86,6 +131,15 @@
       <button id="confirm-delete-cancel" class="btn-dialog-cancel">Cancel</button>
     </div>
   </dialog>
+
+  <div id="context-overlay" class="hidden"></div>
+  <aside id="context-panel" class="hidden">
+    <div id="context-panel-header">
+      <span id="context-panel-title"></span>
+      <button id="context-panel-close" title="Close">✕</button>
+    </div>
+    <div id="context-panel-body"></div>
+  </aside>
 
   <script src="app.js"></script>
 </body>

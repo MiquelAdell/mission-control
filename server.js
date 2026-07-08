@@ -425,6 +425,58 @@ app.get('/api/projects/:name/context', (req, res) => {
   }
 });
 
+// ─── Projects map ─────────────────────────────────────────────────────────────
+
+app.get('/api/projects-map', (req, res) => {
+  const mapPath = path.join(WORKSPACE, 'projects-map.md');
+  try {
+    const markdown = fs.readFileSync(mapPath, 'utf8');
+    res.json({ markdown, path: mapPath, mtime: fs.statSync(mapPath).mtime });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── Helper scripts ───────────────────────────────────────────────────────────
+
+const SCRIPTS_DIR = path.join(process.env.HOME, '.claude', 'scripts');
+
+function scriptDescription(filePath) {
+  // Contiguous comment block right after the shebang, "#" lines as paragraph breaks
+  let lines;
+  try { lines = fs.readFileSync(filePath, 'utf8').split('\n'); } catch { return ''; }
+  const body = lines[0] && lines[0].startsWith('#!') ? lines.slice(1) : lines;
+  const desc = [];
+  for (const line of body) {
+    const m = /^#\s?(.*)$/.exec(line);
+    if (!m) break;
+    desc.push(m[1]);
+  }
+  return desc.join('\n').trim();
+}
+
+app.get('/api/scripts', (req, res) => {
+  try {
+    const names = fs.readdirSync(SCRIPTS_DIR)
+      .filter(f => f.endsWith('.sh'))
+      .sort();
+    const scripts = names.map(name => {
+      const filePath = path.join(SCRIPTS_DIR, name);
+      const stat = fs.statSync(filePath);
+      return {
+        name,
+        path: filePath,
+        description: scriptDescription(filePath),
+        executable: (stat.mode & 0o111) !== 0,
+        mtime: stat.mtime,
+      };
+    });
+    res.json(scripts);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ─── Code TODOs ───────────────────────────────────────────────────────────────
 
 app.get('/api/code-todos', (req, res) => {

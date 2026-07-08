@@ -9,3 +9,5 @@ build/
 .idea/
 .vscode/
 .playwright-mcp/
+.claude/
+repos.json
