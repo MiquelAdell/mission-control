@@ -1,7 +1,7 @@
 {
   "name": "mission-control",
   "version": "1.0.0",
-  "description": "Local todo manager reading from ~/.claude/workspace",
+  "description": "Local todo manager reading from ~/workspace",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

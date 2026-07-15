@@ -9,7 +9,7 @@ const { exec, execSync } = require('child_process');
 
 const app = express();
 const PORT = process.env.PORT || 3333;
-const WORKSPACE = path.join(process.env.HOME, '.claude', 'workspace');
+const WORKSPACE = path.join(process.env.HOME, 'workspace');
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
