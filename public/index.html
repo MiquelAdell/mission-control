@@ -7,61 +7,62 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
   <header>
     <h1><a href="/">Mission Control</a></h1>
-    <div id="counts"></div>
+    <div id="counts" aria-live="polite"></div>
   </header>
 
   <nav id="list-tabs" aria-label="Todo lists">
-    <button class="list-tab active" data-list="work" type="button">
+    <button class="list-tab active" data-list="work" type="button" aria-pressed="true">
       Work <span class="tab-count" id="work-tab-count">0</span>
     </button>
-    <button class="list-tab" data-list="personal" type="button">
+    <button class="list-tab" data-list="personal" type="button" aria-pressed="false">
       Personal <span class="tab-count" id="personal-tab-count">0</span>
     </button>
   </nav>
 
-  <nav id="sub-tabs">
-    <button class="sub-tab active" data-subtab="todo" type="button">TODO</button>
-    <button class="sub-tab" data-subtab="prs" type="button">
+  <nav id="sub-tabs" aria-label="Dashboard views">
+    <button class="sub-tab active" data-subtab="todo" type="button" aria-pressed="true">TODO</button>
+    <button class="sub-tab" data-subtab="prs" type="button" aria-pressed="false">
       PRs <span class="tab-count" id="prs-sub-count">…</span>
     </button>
-    <button class="sub-tab" data-subtab="code" type="button">
+    <button class="sub-tab" data-subtab="code" type="button" aria-pressed="false">
       Code <span class="tab-count" id="code-sub-count">0</span>
     </button>
-    <button class="sub-tab" data-subtab="map" type="button">Map</button>
-    <button class="sub-tab" data-subtab="scripts" type="button">Scripts</button>
+    <button class="sub-tab" data-subtab="map" type="button" aria-pressed="false">Map</button>
+    <button class="sub-tab" data-subtab="scripts" type="button" aria-pressed="false">Scripts</button>
   </nav>
 
   <div id="toolbar">
     <div class="filters">
-      <input type="text" id="search" placeholder="Search…" autocomplete="off">
+      <input type="search" id="search" placeholder="Search…" aria-label="Search todos" autocomplete="off">
 
-      <select id="filter-project">
+      <select id="filter-project" aria-label="Filter by project">
         <option value="all">All projects</option>
       </select>
 
       <div class="priority-toggles">
-        <label class="toggle-btn active" data-priority="now">Now</label>
-        <label class="toggle-btn active" data-priority="next">Next</label>
-        <label class="toggle-btn" data-priority="someday">Someday</label>
-        <label class="toggle-btn" data-priority="done">Done</label>
+        <button class="toggle-btn active" data-priority="now" type="button" aria-pressed="true">Now</button>
+        <button class="toggle-btn active" data-priority="next" type="button" aria-pressed="true">Next</button>
+        <button class="toggle-btn" data-priority="someday" type="button" aria-pressed="false">Someday</button>
+        <button class="toggle-btn" data-priority="done" type="button" aria-pressed="false">Done</button>
       </div>
     </div>
 
     <div class="sort-controls">
-      <span>Sort:</span>
-      <button class="sort-btn active" data-field="priority">Priority</button>
-      <button class="sort-btn" data-field="dueDate">Due date</button>
-      <button class="sort-btn" data-field="project">Project</button>
+      <span id="sort-label">Sort:</span>
+      <button class="sort-btn active" data-field="priority" type="button" aria-describedby="sort-label" aria-pressed="true">Priority</button>
+      <button class="sort-btn" data-field="dueDate" type="button" aria-describedby="sort-label" aria-pressed="false">Due date</button>
+      <button class="sort-btn" data-field="project" type="button" aria-describedby="sort-label" aria-pressed="false">Project</button>
     </div>
   </div>
 
   <div id="new-todo-panel" class="hidden">
     <form id="new-todo-form">
-      <input type="text" id="new-text" placeholder="Todo text… (URLs auto-linked on save)" autocomplete="off" required>
-      <select id="new-project"></select>
-      <select id="new-priority">
+      <input type="text" id="new-text" placeholder="Todo text… (URLs auto-linked on save)" aria-label="Todo text" autocomplete="off" required>
+      <select id="new-project" aria-label="Project"></select>
+      <select id="new-priority" aria-label="Priority">
         <option value="now">Now</option>
         <option value="next" selected>Next</option>
         <option value="someday">Someday</option>
@@ -73,17 +74,17 @@
 
   <div id="pr-view" class="hidden">
     <div id="pr-view-header">
-      <button id="pr-refresh-btn" title="Refresh">↻ Refresh</button>
+      <button id="pr-refresh-btn" type="button" title="Refresh pull requests" aria-label="Refresh pull requests">↻ Refresh</button>
     </div>
     <div id="pr-list"></div>
   </div>
 
   <div id="code-view" class="hidden">
     <div id="code-toolbar">
-      <select id="code-filter-repo">
+      <select id="code-filter-repo" aria-label="Filter code items by repository">
         <option value="all">All repos</option>
       </select>
-      <button id="code-refresh-btn">↻ Refresh</button>
+      <button id="code-refresh-btn" type="button" aria-label="Refresh code items">↻ Refresh</button>
     </div>
     <div id="code-list"></div>
   </div>
@@ -91,7 +92,7 @@
   <div id="map-view" class="hidden">
     <div id="map-view-header">
       <span id="map-path" class="view-source-path"></span>
-      <button id="map-refresh-btn" title="Refresh">↻ Refresh</button>
+      <button id="map-refresh-btn" type="button" title="Refresh project map" aria-label="Refresh project map">↻ Refresh</button>
     </div>
     <div id="map-body" class="md-doc"></div>
   </div>
@@ -99,44 +100,44 @@
   <div id="scripts-view" class="hidden">
     <div id="scripts-view-header">
       <span class="view-source-path">~/.claude/scripts/</span>
-      <button id="scripts-refresh-btn" title="Refresh">↻ Refresh</button>
+      <button id="scripts-refresh-btn" type="button" title="Refresh scripts" aria-label="Refresh scripts">↻ Refresh</button>
     </div>
     <div id="scripts-list"></div>
   </div>
 
-  <main>
+  <main id="main-content" tabindex="-1">
     <table id="todo-table">
       <thead>
         <tr>
-          <th class="col-project">Project</th>
-          <th class="col-priority">Priority</th>
-          <th class="col-due">Due</th>
-          <th class="col-todo">Todo</th>
-          <th class="col-actions"></th>
+          <th class="col-project" scope="col">Project</th>
+          <th class="col-priority" scope="col">Priority</th>
+          <th class="col-due" scope="col">Due</th>
+          <th class="col-todo" scope="col">Todo</th>
+          <th class="col-actions" scope="col">Actions</th>
         </tr>
       </thead>
       <tbody id="todo-body"></tbody>
     </table>
-    <div id="empty-state" class="hidden">No items match the current filters.</div>
+    <div id="empty-state" class="hidden" role="status">No items match the current filters.</div>
   </main>
 
-  <button id="add-btn" title="New todo">+</button>
+  <button id="add-btn" type="button" title="New todo" aria-label="Add todo" aria-controls="new-todo-panel" aria-expanded="false">+</button>
 
-  <div id="toast"></div>
+  <div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-  <dialog id="confirm-delete-dialog">
-    <p>Delete this todo?</p>
+  <dialog id="confirm-delete-dialog" aria-labelledby="confirm-delete-title">
+    <p id="confirm-delete-title">Delete this todo?</p>
     <div class="dialog-actions">
-      <button id="confirm-delete-ok" class="btn-dialog-danger">Delete</button>
-      <button id="confirm-delete-cancel" class="btn-dialog-cancel">Cancel</button>
+      <button id="confirm-delete-ok" class="btn-dialog-danger" type="button">Delete</button>
+      <button id="confirm-delete-cancel" class="btn-dialog-cancel" type="button">Cancel</button>
     </div>
   </dialog>
 
   <div id="context-overlay" class="hidden"></div>
-  <aside id="context-panel" class="hidden">
+  <aside id="context-panel" class="hidden" role="dialog" aria-modal="true" aria-labelledby="context-panel-title" tabindex="-1">
     <div id="context-panel-header">
       <span id="context-panel-title"></span>
-      <button id="context-panel-close" title="Close">✕</button>
+      <button id="context-panel-close" type="button" title="Close context" aria-label="Close context">✕</button>
     </div>
     <div id="context-panel-body"></div>
   </aside>

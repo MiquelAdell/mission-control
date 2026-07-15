@@ -17,6 +17,8 @@ const state = {
   sort: { field: 'priority', dir: 'asc' },
 };
 
+let contextTrigger = null;
+
 // ─── Markdown renderer ────────────────────────────────────────────────────────
 
 function renderMd(text) {
@@ -127,7 +129,17 @@ function projectsForActiveList() {
 
 function syncPriorityToggleButtons() {
   document.querySelectorAll('.priority-toggles .toggle-btn').forEach(btn => {
-    btn.classList.toggle('active', state.filter.priorities.has(btn.dataset.priority));
+    const isActive = state.filter.priorities.has(btn.dataset.priority);
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-pressed', String(isActive));
+  });
+}
+
+function syncTabSelection(selector, selected) {
+  document.querySelectorAll(selector).forEach(tab => {
+    const isSelected = tab === selected;
+    tab.classList.toggle('active', isSelected);
+    tab.setAttribute('aria-pressed', String(isSelected));
   });
 }
 
@@ -191,21 +203,28 @@ function render() {
     if (item.done) tr.classList.add('is-done');
 
     tr.innerHTML = `
-      <td class="col-project"><button class="project-link" data-project="${escHtml(item.project)}">${escHtml(item.project)}</button></td>
-      <td class="col-priority"><span class="badge ${PRIORITY_CLASS[item.priority]}" title="Click to change priority">${PRIORITY_LABEL[item.priority]}</span></td>
-      <td class="col-due">${item.dueDate ? `<span class="due-date${isDue(item.dueDate) ? ' overdue' : ''}">${item.dueDate}</span>` : ''}</td>
-      <td class="col-todo">
+      <td class="col-project" data-label="Project"><button class="project-link" type="button" data-project="${escHtml(item.project)}" aria-label="Open ${escHtml(item.project)} project context">${escHtml(item.project)}</button></td>
+      <td class="col-priority" data-label="Priority"><span class="badge ${PRIORITY_CLASS[item.priority]}" role="button" tabindex="0" aria-label="Change priority, currently ${PRIORITY_LABEL[item.priority]}" title="Click to change priority">${PRIORITY_LABEL[item.priority]}</span></td>
+      <td class="col-due" data-label="Due">${item.dueDate ? `<span class="due-date${isDue(item.dueDate) ? ' overdue' : ''}">${item.dueDate}</span>` : ''}</td>
+      <td class="col-todo" data-label="Todo">
         <span class="todo-text" title="${escHtml(item.subLines && item.subLines.length ? item.subLines.join('\n') : '')}">${renderText(item.text)}</span>
       </td>
-      <td class="col-actions">
-        ${!item.done ? `<button class="btn-done" title="Mark done" data-id="${item.id}">✓</button><button class="btn-delete" title="Delete" data-id="${item.id}">✕</button>` : ''}
+      <td class="col-actions" data-label="Actions">
+        ${!item.done ? `<button class="btn-done" type="button" title="Mark done" aria-label="Mark ${escHtml(item.text)} as done" data-id="${item.id}">✓</button><button class="btn-delete" type="button" title="Delete" aria-label="Delete ${escHtml(item.text)}" data-id="${item.id}">✕</button>` : ''}
       </td>
     `;
 
-    tr.querySelector('.project-link').addEventListener('click', () => openContextPanel(item.project));
+    tr.querySelector('.project-link').addEventListener('click', event => openContextPanel(item.project, event.currentTarget));
 
     if (!item.done) {
-      tr.querySelector('.badge').addEventListener('click', () => startPriorityEdit(tr, item));
+      const priorityBadge = tr.querySelector('.badge');
+      priorityBadge.addEventListener('click', () => startPriorityEdit(tr, item));
+      priorityBadge.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          startPriorityEdit(tr, item);
+        }
+      });
       tr.querySelector('.todo-text').addEventListener('dblclick', () => startEdit(tr, item));
       tr.querySelector('.btn-done').addEventListener('click', () => markDone(item, tr));
       tr.querySelector('.btn-delete').addEventListener('click', () => deleteTodo(item, tr));
@@ -426,6 +445,7 @@ function deleteTodo(item, tr) {
   dialog.addEventListener('cancel', onCancel);
 
   dialog.showModal();
+  cancelBtn.focus();
 }
 
 // ─── Data loading ─────────────────────────────────────────────────────────────
@@ -531,7 +551,7 @@ document.querySelectorAll('.list-tab').forEach(tab => {
 
     state.list = list;
     state.filter.project = 'all';
-    document.querySelectorAll('.list-tab').forEach(t => t.classList.toggle('active', t === tab));
+    syncTabSelection('.list-tab', tab);
 
     if (state.subTab === 'todo') {
       updateProjectDropdown();
@@ -575,15 +595,21 @@ document.querySelectorAll('.sort-btn').forEach(btn => {
       state.sort.field = field;
       state.sort.dir = 'asc';
     }
-    document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
+    document.querySelectorAll('.sort-btn').forEach(b => {
+      const isActive = b === btn;
+      b.classList.toggle('active', isActive);
+      b.setAttribute('aria-pressed', String(isActive));
+    });
     render();
   });
 });
 
 document.getElementById('add-btn').addEventListener('click', () => {
-  document.getElementById('new-todo-panel').classList.toggle('hidden');
-  if (!document.getElementById('new-todo-panel').classList.contains('hidden')) {
+  const panel = document.getElementById('new-todo-panel');
+  const isOpening = panel.classList.contains('hidden');
+  panel.classList.toggle('hidden');
+  document.getElementById('add-btn').setAttribute('aria-expanded', String(isOpening));
+  if (isOpening) {
     // Inherit filter selections as defaults
     if (state.filter.project !== 'all') {
       document.getElementById('new-project').value = state.filter.project;
@@ -601,6 +627,8 @@ document.getElementById('add-btn').addEventListener('click', () => {
 document.getElementById('cancel-new').addEventListener('click', () => {
   document.getElementById('new-todo-panel').classList.add('hidden');
   document.getElementById('new-todo-form').reset();
+  document.getElementById('add-btn').setAttribute('aria-expanded', 'false');
+  document.getElementById('add-btn').focus();
 });
 
 document.getElementById('new-todo-form').addEventListener('submit', e => {
@@ -621,6 +649,7 @@ document.getElementById('new-todo-form').addEventListener('submit', e => {
     if (data.error) { showToast(data.error, 'error'); return; }
     document.getElementById('new-todo-panel').classList.add('hidden');
     document.getElementById('new-todo-form').reset();
+    document.getElementById('add-btn').setAttribute('aria-expanded', 'false');
     reload();
   })
   .catch(e => showToast(e.message, 'error'));
@@ -630,7 +659,7 @@ document.getElementById('new-todo-form').addEventListener('submit', e => {
 
 function switchSubTab(subTab) {
   state.subTab = subTab;
-  document.querySelectorAll('.sub-tab').forEach(t => t.classList.toggle('active', t.dataset.subtab === subTab));
+  syncTabSelection('.sub-tab', document.querySelector(`.sub-tab[data-subtab="${subTab}"]`));
 
   const isTodo    = subTab === 'todo';
   const isPrs     = subTab === 'prs';
@@ -640,6 +669,7 @@ function switchSubTab(subTab) {
 
   document.getElementById('toolbar').classList.toggle('hidden', !isTodo);
   document.getElementById('new-todo-panel').classList.add('hidden');
+  document.getElementById('add-btn').setAttribute('aria-expanded', 'false');
   document.getElementById('pr-view').classList.toggle('hidden', !isPrs);
   document.getElementById('code-view').classList.toggle('hidden', !isCode);
   document.getElementById('map-view').classList.toggle('hidden', !isMap);
@@ -813,16 +843,18 @@ function renderMarkdownBlocks(md) {
   return out.join('\n');
 }
 
-async function openContextPanel(project) {
+async function openContextPanel(project, trigger) {
   const panel = document.getElementById('context-panel');
   const overlay = document.getElementById('context-overlay');
   const title = document.getElementById('context-panel-title');
   const body = document.getElementById('context-panel-body');
+  contextTrigger = trigger;
 
   title.textContent = project;
   body.innerHTML = '<div class="context-loading">Loading…</div>';
   panel.classList.remove('hidden');
   overlay.classList.remove('hidden');
+  document.getElementById('context-panel-close').focus();
 
   try {
     const data = await fetch(`/api/projects/${encodeURIComponent(project)}/context`).then(r => r.json());
@@ -834,8 +866,12 @@ async function openContextPanel(project) {
 }
 
 function closeContextPanel() {
-  document.getElementById('context-panel').classList.add('hidden');
+  const panel = document.getElementById('context-panel');
+  const wasOpen = !panel.classList.contains('hidden');
+  panel.classList.add('hidden');
   document.getElementById('context-overlay').classList.add('hidden');
+  if (wasOpen && contextTrigger) contextTrigger.focus();
+  contextTrigger = null;
 }
 
 document.getElementById('context-panel-close').addEventListener('click', closeContextPanel);
